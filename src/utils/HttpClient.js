@@ -1,13 +1,6 @@
 "use strict";
 
-// We need this fancy way for importing node-fetch and make it work with webpack
-const _importDynamic = new Function("modulePath", "return import(modulePath)");
-
-async function fetch(...args) {
-  const { default: fetch } = await _importDynamic("node-fetch");
-  return fetch(...args);
-}
-
+const axios = require("axios").default;
 const fs = require("fs");
 
 class HttpClient {
@@ -19,13 +12,8 @@ class HttpClient {
   }
 
   async getJson(url) {
-    const res = await fetch(url, this.getHttpOptions());
-
-    if (res.ok) {
-      return res.json();
-    } else {
-      throw new Error(await res.text());
-    }
+    const res = await axios(url, this.getHttpOptions());
+    return res.data;
   }
 
   /**
@@ -33,10 +21,15 @@ class HttpClient {
    *
    */
   async downloadFile(url, savePath) {
-    const res = await fetch(url, this.getHttpOptions());
+    const res = await axios({
+      ...this.getHttpOptions(),
+      method: "get",
+      url,
+      responseType: "stream",
+    });
     return new Promise((resolve, reject) => {
       const fileStream = fs.createWriteStream(savePath);
-      res.body.pipe(fileStream);
+      res.data.pipe(fileStream);
 
       const handleError = async (err) => {
         const stat = await fs.promises.stat(savePath);
@@ -46,7 +39,7 @@ class HttpClient {
         reject(err);
       };
 
-      res.body.on("error", handleError);
+      res.data.on("error", handleError);
 
       fileStream.on("error", handleError);
       fileStream.on("finish", function () {
